@@ -54,10 +54,9 @@ async def create_book(
     book_data: BookCreateModel,
     session: AsyncSession = Depends(get_session),
     user_details: str = Depends(access_token_bearer),
-) -> dict:
+):
     new_book = await book_service.create_book(session, book_data)
-
-    return {"message": "Book created successfully", "data": new_book}
+    return new_book
 
 
 @book_router.patch("/{book_id}", response_model=Book, status_code=status.HTTP_200_OK)
@@ -69,7 +68,7 @@ async def update_book(
 ):
     updated_book = await book_service.update_book(session, book_id, updated_book_data)
     if updated_book:
-        return {"message": "Book updated successfully", "data": updated_book}
+        return updated_book
 
     raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="Book not found !")
 

@@ -1,0 +1,7 @@
+# Python bytecode files
+*.pyc
+# The __pycache__ directory
+__pycache__/
+# Virtual environment directory (highly recommended)
+.venv/
+venv/
