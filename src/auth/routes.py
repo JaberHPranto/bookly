@@ -1,18 +1,21 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, status
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio.session import AsyncSession
 
+from src.auth.dependencies import AccessTokenBearer, RefreshTokenBearer
 from src.auth.schemas import UserCreateModel, UserLoginModel, UserModel
 from src.auth.services import UserService
 from src.auth.utils import create_access_token, verify_password
+from src.db.redis import add_token_to_blocklist
 from src.db.main import get_session
 
 auth_router = APIRouter()
 user_service = UserService()
-
+refresh_token_bearer = RefreshTokenBearer()
+access_token_bearer = AccessTokenBearer()
 
 @auth_router.post(
     "/signup", response_model=UserModel, status_code=status.HTTP_201_CREATED
@@ -25,7 +28,7 @@ async def signup(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User with this email already exists",
-        )
+        ) 
 
     new_user = await user_service.create_user(session, user_data)
     return new_user
@@ -69,3 +72,39 @@ async def login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
+
+
+@auth_router.get("/refresh-token")
+async def get_new_access_token(token_details: dict = Depends(refresh_token_bearer)):
+    user_data = token_details["user"]
+    token_expiry = token_details["exp"]
+
+    if(datetime.fromtimestamp(token_expiry) - datetime.now()).days < 0:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Refresh token has expired, please login again",
+        )
+
+    new_access_token = create_access_token(user_data)
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "message": "Access token refreshed successfully",
+            "access_token": new_access_token,
+        },
+    )
+
+
+@auth_router.post("/logout")
+async def revoke_token(
+    token_details: dict = Depends(access_token_bearer),
+):
+    jti = token_details["jti"]
+
+    await add_token_to_blocklist(jti)
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={"message": "Logout successful"},
+    )
