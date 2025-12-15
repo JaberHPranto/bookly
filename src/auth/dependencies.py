@@ -1,12 +1,19 @@
-from fastapi import Request
+from fastapi import Depends, Request
 from fastapi.exceptions import HTTPException
 from fastapi.security import HTTPBearer
 from fastapi.security.http import HTTPAuthorizationCredentials
 from starlette import status
+from typing import List
 
+from src.auth.models import User
+from src.auth.schemas import UserModel
+from src.auth.services import UserService
 from src.auth.utils import decode_access_token
+from src.db.main import get_session
 from src.db.redis import is_token_blocked
 
+
+user_service = UserService()
 
 class TokenBearer(HTTPBearer):
     def __init__(self, auto_error: bool = True):
@@ -68,3 +75,37 @@ class RefreshTokenBearer(TokenBearer):
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Please provide a refresh token",
             )    
+        
+
+    
+async def get_current_user(token_data: dict = Depends(AccessTokenBearer()),session = Depends(get_session)) :
+    user_email = token_data["user"]["email"]
+    
+    if user_email is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+    
+    user =  await user_service.get_user_by_email(session,user_email)
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )   
+    
+    return user
+
+
+class RoleChecker:
+    def __init__(self, allowed_roles: List[str]):
+        self.allowed_roles = allowed_roles
+
+    async def __call__(self, current_user: User = Depends(get_current_user)):
+        if current_user.role not in self.allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to perform this action",
+            )   
+        return True

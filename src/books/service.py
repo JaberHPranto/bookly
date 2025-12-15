@@ -1,3 +1,4 @@
+import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import desc, select
 
@@ -11,6 +12,12 @@ class BookService:
         result = await session.execute(statement)
 
         return result.scalars().all()
+    
+    async def get_user_books(self, session: AsyncSession, user_id: uuid.UUID):
+        statement = select(Book).where(Book.user_id == user_id).order_by(desc(Book.created_at))
+        result = await session.execute(statement)
+
+        return result.scalars().all()
 
     async def get_book(self, session: AsyncSession, book_id: str):
         statement = select(Book).where(Book.uid == book_id)
@@ -19,9 +26,11 @@ class BookService:
 
         return book
 
-    async def create_book(self, session: AsyncSession, book_data: BookCreateModel):
+    async def create_book(self, session: AsyncSession, book_data: BookCreateModel,user_id:uuid.UUID):
         new_book = Book.model_validate(book_data)
+        new_book.user_id = user_id
         session.add(new_book)
+
         await session.commit()
         await session.refresh(new_book)
 

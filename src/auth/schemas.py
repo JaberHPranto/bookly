@@ -1,7 +1,10 @@
 import uuid
 from datetime import datetime
+from typing import List
 
 from pydantic import BaseModel, Field
+
+from src.books.schemas import Book
 
 
 class UserCreateModel(BaseModel):
@@ -24,6 +27,8 @@ class UserModel(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+class UserModelWithBooks(UserModel):
+    books: List[Book] = []
 
 class UserLoginModel(BaseModel):
     email: str

@@ -26,7 +26,7 @@ app = FastAPI(
     version=version,
     port=8000,
     description="Book collection application",
-    lifespan=lifespan,
+    # lifespan=lifespan,
 )
 
 

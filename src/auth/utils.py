@@ -2,8 +2,10 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
-import  jwt
+import jwt
+from fastapi.exceptions import HTTPException
 from passlib.context import CryptContext
+from starlette import status
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -35,8 +37,17 @@ def decode_access_token(token: str) -> dict:
         payload = jwt.decode(jwt=token, key="VERY_SECRET_KEY", algorithms=["HS256"])
         return payload
     except jwt.ExpiredSignatureError:
-        raise Exception("Token has expired")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Token has expired"
+        )
     except jwt.InvalidTokenError:
-        raise Exception("Invalid token")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid token"
+        )
     except jwt.PyJWTError as e:
-        raise Exception(f"Token decode error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Token decode error: {str(e)}"
+        )

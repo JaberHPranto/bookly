@@ -5,8 +5,8 @@ from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio.session import AsyncSession
 
-from src.auth.dependencies import AccessTokenBearer, RefreshTokenBearer
-from src.auth.schemas import UserCreateModel, UserLoginModel, UserModel
+from src.auth.dependencies import AccessTokenBearer, RefreshTokenBearer, RoleChecker, get_current_user
+from src.auth.schemas import UserCreateModel, UserLoginModel, UserModel, UserModelWithBooks
 from src.auth.services import UserService
 from src.auth.utils import create_access_token, verify_password
 from src.db.redis import add_token_to_blocklist
@@ -16,6 +16,7 @@ auth_router = APIRouter()
 user_service = UserService()
 refresh_token_bearer = RefreshTokenBearer()
 access_token_bearer = AccessTokenBearer()
+role_checker = RoleChecker(["admin","user"])
 
 @auth_router.post(
     "/signup", response_model=UserModel, status_code=status.HTTP_201_CREATED
@@ -47,6 +48,7 @@ async def login(
             user_payload = {
                 "uid": str(user.uid),
                 "email": user.email,
+                "role":user.role
             }
             access_token = create_access_token(user_payload)
             refresh_token = create_access_token(
@@ -95,6 +97,12 @@ async def get_new_access_token(token_details: dict = Depends(refresh_token_beare
         },
     )
 
+@auth_router.get("/me",response_model=UserModelWithBooks)
+async def get_current_user_details(
+    current_user: UserModelWithBooks = Depends(get_current_user),
+    _: bool = Depends(role_checker)
+):
+    return current_user
 
 @auth_router.post("/logout")
 async def revoke_token(

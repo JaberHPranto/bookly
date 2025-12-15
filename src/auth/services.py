@@ -20,6 +20,7 @@ class UserService:
     async def create_user(self, session: AsyncSession, user_data: UserCreateModel):
         new_user = User.model_validate(user_data)
         new_user.hashed_password = hash_password(user_data.password)
+        new_user.role = "user"
 
         session.add(new_user)
         await session.commit()
