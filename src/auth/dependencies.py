@@ -11,7 +11,7 @@ from src.auth.services import UserService
 from src.auth.utils import decode_access_token
 from src.db.main import get_session
 from src.db.redis import is_token_blocked
-
+from src.errors import InvalidTokenException,AccessTokenRequiredException,RefreshTokenRequiredException,UserNotFoundException,InsufficientPermissionsException
 
 user_service = UserService()
 
@@ -26,30 +26,20 @@ class TokenBearer(HTTPBearer):
 
         # If no token or invalid token, raise 403 Forbidden
         if token is None or not self.verify_token(token):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail={
-                    "message": "Token is invalid or expired.",
-                    "resolution": "Please log in again to obtain a new token"
-                }
-            )
+            raise InvalidTokenException()
 
         token_data = decode_access_token(token)
         
         # Check if token's JTI is in blocklist
         jti = token_data.get("jti") if token_data else None
         if jti and await is_token_blocked(jti):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN, detail={
-                    "message": "Token has been revoked",
-                    "resolution": "Please log in again to obtain a new token"
-                }
-            )
+            raise InvalidTokenException()
 
         # Additional verification based on token type
         self.verify_token_data(token_data)
      
         return token_data  # type: ignore
-
+ 
     def verify_token(self, token: str) -> bool:
         token_data = decode_access_token(token)
 
@@ -62,19 +52,13 @@ class TokenBearer(HTTPBearer):
 class AccessTokenBearer(TokenBearer):
     def verify_token_data(self, token_data:dict) -> None:
         if token_data and token_data["refresh"]:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Please provide an access token",
-            )
+            raise AccessTokenRequiredException()
         
  
 class RefreshTokenBearer(TokenBearer):
     def verify_token_data(self, token_data:dict) -> None:
         if token_data and not token_data["refresh"]:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Please provide a refresh token",
-            )    
+            raise RefreshTokenRequiredException()
         
 
     
@@ -82,18 +66,12 @@ async def get_current_user(token_data: dict = Depends(AccessTokenBearer()),sessi
     user_email = token_data["user"]["email"]
     
     if user_email is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
+        raise UserNotFoundException()
     
     user =  await user_service.get_user_by_email(session,user_email)
 
     if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )   
+        raise UserNotFoundException()
     
     return user
 
@@ -104,8 +82,6 @@ class RoleChecker:
 
     async def __call__(self, current_user: User = Depends(get_current_user)):
         if current_user.role not in self.allowed_roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to perform this action",
-            )   
+            raise InsufficientPermissionsException()
+        
         return True

@@ -11,6 +11,7 @@ from src.auth.services import UserService
 from src.auth.utils import create_access_token, verify_password
 from src.db.redis import add_token_to_blocklist
 from src.db.main import get_session
+from src.errors import InvalidCredentialsException
 
 auth_router = APIRouter()
 user_service = UserService()
@@ -64,18 +65,12 @@ async def login(
             )
 
         else:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password",
-            )
+            raise InvalidCredentialsException()
 
     else:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
-        )
-
-
+        raise InvalidCredentialsException()
+    
+    
 @auth_router.get("/refresh-token")
 async def get_new_access_token(token_details: dict = Depends(refresh_token_bearer)):
     user_data = token_details["user"]
