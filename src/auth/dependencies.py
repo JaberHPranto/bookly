@@ -5,7 +5,7 @@ from fastapi.security.http import HTTPAuthorizationCredentials
 from starlette import status
 from typing import List
 
-from src.auth.models import User
+from src.db.models import User
 from src.auth.schemas import UserModel
 from src.auth.services import UserService
 from src.auth.utils import decode_access_token

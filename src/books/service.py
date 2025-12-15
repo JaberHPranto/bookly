@@ -2,7 +2,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import desc, select
 
-from src.books.models import Book
+from src.db.models import Book
 from src.books.schemas import BookCreateModel, BookUpdateModel
 
 

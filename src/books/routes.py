@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio.session import AsyncSession
 from starlette.status import HTTP_404_NOT_FOUND
 
 from src.auth.dependencies import AccessTokenBearer, RoleChecker
-from src.books.schemas import Book, BookCreateModel, BookUpdateModel
+from src.books.schemas import Book, BookCreateModel, BookDetailModel, BookUpdateModel
 from src.books.service import BookService
 from src.db.main import get_session
 
@@ -44,11 +44,11 @@ async def get_all_books_by_user(
     books = await book_service.get_user_books(session, user_id=uuid.UUID(user_id))
     return books
 
-
+    
 @book_router.get(
     "/{book_id}",
     status_code=status.HTTP_200_OK,
-    response_model=Book,
+    response_model=BookDetailModel,
     dependencies=[role_checker],
 )
 async def get_book(
