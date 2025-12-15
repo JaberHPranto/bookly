@@ -3,13 +3,13 @@ from sqlmodel import SQLModel
 
 from src.config import Config
 
-engine = create_async_engine(Config.DATABASE_URL, echo=True)
+engine = create_async_engine(Config.DATABASE_URL)
 
 
 async def init_db():
     async with engine.begin() as conn:
         # statement = text("SELECT 'Hello World';")
-        # result = await conn.execute(statement)
+        # result = await conn.execute(statement  )
         # print(result.all())
 
         from src.db.models import Book
