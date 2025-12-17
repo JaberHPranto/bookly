@@ -5,23 +5,72 @@ from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio.session import AsyncSession
 
-from src.auth.dependencies import AccessTokenBearer, RefreshTokenBearer, RoleChecker, get_current_user
-from src.auth.schemas import UserCreateModel, UserLoginModel, UserModel, UserModelWithBooks
+from src.auth.dependencies import (
+    AccessTokenBearer,
+    RefreshTokenBearer,
+    RoleChecker,
+    get_current_user,
+)
+from src.auth.schemas import (
+    EmailSchema,
+    UserCreateModel,
+    UserLoginModel,
+    UserModelWithBooks,
+)
 from src.auth.services import UserService
-from src.auth.utils import create_access_token, verify_password
-from src.db.redis import add_token_to_blocklist
+from src.auth.utils import (
+    create_access_token,
+    create_email_confirmation_token,
+    verify_email_confirmation_token,
+    verify_password,
+)
+from src.config import Config
 from src.db.main import get_session
-from src.errors import InvalidCredentialsException
+from src.db.redis import add_token_to_blocklist
+from src.errors import InvalidCredentialsException, UserNotFoundException
+from src.mail import create_message, mail
 
 auth_router = APIRouter()
 user_service = UserService()
 refresh_token_bearer = RefreshTokenBearer()
 access_token_bearer = AccessTokenBearer()
-role_checker = RoleChecker(["admin","user"])
+role_checker = RoleChecker(["admin", "user"])
 
-@auth_router.post(
-    "/signup", response_model=UserModel, status_code=status.HTTP_201_CREATED
-)
+
+@auth_router.post("/send-mail")
+async def send_test_mail(recipients: EmailSchema):
+    message = create_message(
+        subject="Test Mail from Bookly",
+        recipients=recipients.email_addresses,
+        body="This is a test mail sent from Bookly application.",
+    )
+
+    await mail.send_message(message)
+
+    return {"message": "Mail sent successfully"}
+
+
+@auth_router.get("/verify-email")
+async def verify_email(token: str, session: AsyncSession = Depends(get_session)):
+    decoded_email = verify_email_confirmation_token(token)
+
+    if not decoded_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired token",
+        )
+
+    user = await user_service.get_user_by_email(session, decoded_email)
+
+    if not user:
+        raise UserNotFoundException()
+
+    await user_service.update_users(session, user, {"is_verified": True})
+
+    return {"message": "Email verified successfully"}
+
+
+@auth_router.post("/signup", status_code=status.HTTP_201_CREATED)
 async def signup(
     user_data: UserCreateModel, session: AsyncSession = Depends(get_session)
 ):
@@ -30,10 +79,44 @@ async def signup(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User with this email already exists",
-        ) 
+        )
 
     new_user = await user_service.create_user(session, user_data)
-    return new_user
+
+    # User verification
+    verification_token = create_email_confirmation_token(new_user.email)
+    verification_link = (
+        f"{Config.DOMAIN}/api/v1/auth/verify-email?token={verification_token}"
+    )
+
+    email_template = f"""
+    <html>
+        <body>
+            <h2>Welcome to Bookly, {new_user.first_name} {new_user.last_name}!</h2>
+            <p>Thank you for signing up. Please verify your email address by clicking the link below:</p>
+            <a href="{verification_link}">Verify Email</a>
+            <p>If you did not sign up for this account, please ignore this email.</p>
+            <br>
+            <p>Best regards,<br>The Bookly Team</p>
+        </body>
+    </html>
+    """
+
+    message = create_message(
+        subject="Welcome to Bookly - Verify Your Email",
+        recipients=[new_user.email],
+        body=email_template,
+    )
+
+    await mail.send_message(message)
+
+    return JSONResponse(
+        status_code=status.HTTP_201_CREATED,
+        content={
+            "message": "User created successfully. Please check your email to verify your account.",
+            "user": new_user.model_dump(mode="json"),
+        },
+    )
 
 
 @auth_router.post("/login")
@@ -49,7 +132,7 @@ async def login(
             user_payload = {
                 "uid": str(user.uid),
                 "email": user.email,
-                "role":user.role
+                "role": user.role,
             }
             access_token = create_access_token(user_payload)
             refresh_token = create_access_token(
@@ -69,14 +152,14 @@ async def login(
 
     else:
         raise InvalidCredentialsException()
-    
-    
+
+
 @auth_router.get("/refresh-token")
 async def get_new_access_token(token_details: dict = Depends(refresh_token_bearer)):
     user_data = token_details["user"]
     token_expiry = token_details["exp"]
 
-    if(datetime.fromtimestamp(token_expiry) - datetime.now()).days < 0:
+    if (datetime.fromtimestamp(token_expiry) - datetime.now()).days < 0:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Refresh token has expired, please login again",
@@ -92,12 +175,14 @@ async def get_new_access_token(token_details: dict = Depends(refresh_token_beare
         },
     )
 
-@auth_router.get("/me",response_model=UserModelWithBooks)
+
+@auth_router.get("/me", response_model=UserModelWithBooks)
 async def get_current_user_details(
     current_user: UserModelWithBooks = Depends(get_current_user),
-    _: bool = Depends(role_checker)
+    _: bool = Depends(role_checker),
 ):
     return current_user
+
 
 @auth_router.post("/logout")
 async def revoke_token(

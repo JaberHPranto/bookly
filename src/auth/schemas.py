@@ -28,10 +28,16 @@ class UserModel(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+
 class UserModelWithBooks(UserModel):
     books: List[Book] = []
     reviews: List["ReviewModel"] = []
 
+
 class UserLoginModel(BaseModel):
     email: str
     password: str
+
+
+class EmailSchema(BaseModel):
+    email_addresses: List[str]

@@ -1,9 +1,9 @@
 from sqlalchemy.ext.asyncio.session import AsyncSession
 from sqlmodel import select
 
-from src.db.models import User
 from src.auth.schemas import UserCreateModel
 from src.auth.utils import hash_password
+from src.db.models import User
 
 
 class UserService:
@@ -27,3 +27,13 @@ class UserService:
         await session.refresh(new_user)
 
         return new_user
+
+    async def update_users(self, session: AsyncSession, user: User, update_data: dict):
+        for key, value in update_data.items():
+            setattr(user, key, value)
+
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+
+        return user

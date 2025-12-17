@@ -2,14 +2,13 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
 
 from src.auth.routes import auth_router
 from src.books.routes import book_router
-from src.middleware import register_all_middleware
-from src.reviews.routes import review_router
 from src.db.main import init_db
 from src.errors import register_all_error_handlers
+from src.middleware import register_all_middleware
+from src.reviews.routes import review_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -38,12 +37,11 @@ register_all_error_handlers(app)
 register_all_middleware(app)
 
 
-
 @app.get("/")
 async def health():
     return {"message": "Welcome to bookly"}
 
-  
+
 app.include_router(router=book_router, prefix=f"/api/{version}/books", tags=["books"])
 app.include_router(router=auth_router, prefix=f"/api/{version}/auth", tags=["auth"])
 app.include_router(

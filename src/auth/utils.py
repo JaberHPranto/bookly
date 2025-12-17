@@ -4,6 +4,7 @@ from typing import Optional
 
 import jwt
 from fastapi.exceptions import HTTPException
+from itsdangerous import URLSafeTimedSerializer
 from passlib.context import CryptContext
 from starlette import status
 
@@ -38,16 +39,33 @@ def decode_access_token(token: str) -> dict:
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Token has expired"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Token has expired"
         )
     except jwt.InvalidTokenError:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Invalid token"
+            status_code=status.HTTP_403_FORBIDDEN, detail="Invalid token"
         )
     except jwt.PyJWTError as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Token decode error: {str(e)}"
+            detail=f"Token decode error: {str(e)}",
         )
+
+
+serializer = URLSafeTimedSerializer(
+    secret_key="VERY_SECRET_KEY", salt="email-confirm-salt"
+)
+
+
+def create_email_confirmation_token(email: str) -> str:
+    return serializer.dumps(email)
+
+
+def verify_email_confirmation_token(
+    token: str, expiration: int = 3600
+) -> Optional[str]:
+    try:
+        email = serializer.loads(token, max_age=expiration)
+        return email
+    except Exception:
+        return None
