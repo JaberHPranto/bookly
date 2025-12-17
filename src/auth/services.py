@@ -8,8 +8,8 @@ from src.db.models import User
 
 class UserService:
     async def get_user_by_email(self, session: AsyncSession, email: str):
-        statment = select(User).where(User.email == email)
-        result = await session.execute(statment)
+        statement = select(User).where(User.email == email)
+        result = await session.execute(statement)
 
         return result.scalar_one_or_none()
 

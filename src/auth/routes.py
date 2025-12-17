@@ -25,6 +25,7 @@ from src.auth.utils import (
     verify_email_confirmation_token,
     verify_password,
 )
+from src.celery_tasks import send_email
 from src.config import Config
 from src.db.main import get_session
 from src.db.redis import add_token_to_blocklist
@@ -40,13 +41,11 @@ role_checker = RoleChecker(["admin", "user"])
 
 @auth_router.post("/send-mail")
 async def send_test_mail(recipients: EmailSchema):
-    message = create_message(
-        subject="Test Mail from Bookly",
+    send_email.delay(  # type: ignore[attr-defined]
         recipients=recipients.email_addresses,
-        body="This is a test mail sent from Bookly application.",
+        subject="Test Mail from Bookly",
+        body="<h1>This is a test email from Bookly application.</h1>",
     )
-
-    await mail.send_message(message)
 
     return {"message": "Mail sent successfully"}
 
