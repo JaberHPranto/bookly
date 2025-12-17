@@ -32,7 +32,6 @@ class UserService:
         for key, value in update_data.items():
             setattr(user, key, value)
 
-        session.add(user)
         await session.commit()
         await session.refresh(user)
 

@@ -1,5 +1,6 @@
 import logging
-from typing import Callable, Any, Coroutine
+from typing import Any, Callable, Coroutine
+
 from fastapi import FastAPI, status
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
@@ -9,41 +10,55 @@ logger = logging.getLogger(__name__)
 
 class BooklyException(Exception):
     """Base exception for Bookly application errors."""
+
     pass
 
 
 class InvalidTokenException(BooklyException):
     """Exception raised for invalid authentication tokens."""
+
     pass
 
 
 class AccessTokenRequiredException(BooklyException):
     """Exception raised when an access token is required but not provided."""
+
     pass
 
 
 class RefreshTokenRequiredException(BooklyException):
     """Exception raised when a refresh token is required but not provided."""
+
     pass
 
 
 class UserNotFoundException(BooklyException):
     """Exception raised when a user is not found."""
+
     pass
 
 
 class BookNotFoundException(BooklyException):
     """Exception raised when a book is not found."""
+
     pass
 
 
 class InsufficientPermissionsException(BooklyException):
     """Exception raised when a user does not have sufficient permissions."""
+
     pass
 
 
 class InvalidCredentialsException(BooklyException):
     """Exception raised for invalid user credentials."""
+
+    pass
+
+
+class AccountNotVerifiedException(BooklyException):
+    """Exception raised when a user's account is not verified."""
+
     pass
 
 
@@ -64,14 +79,14 @@ def create_exception_handler(
 def register_all_error_handlers(app: FastAPI) -> None:
     """
     Register all custom error handlers for the Bookly application.
-    
+
     This function centralizes all exception handler registrations to improve
     maintainability and reduce code duplication in the main application file.
-    
+
     Args:
         app: FastAPI application instance
     """
-    
+
     # Define error handler configurations
     error_handlers_config = [
         {
@@ -114,8 +129,17 @@ def register_all_error_handlers(app: FastAPI) -> None:
                 "error_code": "INSUFFICIENT_PERMISSIONS",
             },
         },
+        {
+            "exception": AccountNotVerifiedException,
+            "status_code": status.HTTP_403_FORBIDDEN,
+            "details": {
+                "message": "Account is not verified",
+                "error_code": "ACCOUNT_NOT_VERIFIED",
+                "resolution": "Please verify your email to activate your account.",
+            },
+        },
     ]
-    
+
     # Register all exception handlers
     for config in error_handlers_config:
         app.add_exception_handler(
@@ -125,10 +149,12 @@ def register_all_error_handlers(app: FastAPI) -> None:
                 initial_details=config["details"],
             ),
         )
-    
+
     # Register internal server error handler
     @app.exception_handler(500)
-    async def internal_server_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    async def internal_server_error_handler(
+        request: Request, exc: Exception
+    ) -> JSONResponse:
         logger.error(f"🚨 Internal server error: {exc}")
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

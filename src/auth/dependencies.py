@@ -11,6 +11,7 @@ from src.db.models import User
 from src.db.redis import is_token_blocked
 from src.errors import (
     AccessTokenRequiredException,
+    AccountNotVerifiedException,
     InsufficientPermissionsException,
     InvalidTokenException,
     RefreshTokenRequiredException,
@@ -87,6 +88,9 @@ class RoleChecker:
         self.allowed_roles = allowed_roles
 
     async def __call__(self, current_user: User = Depends(get_current_user)):
+        if not current_user.is_verified:
+            raise AccountNotVerifiedException()
+
         if current_user.role not in self.allowed_roles:
             raise InsufficientPermissionsException()
 

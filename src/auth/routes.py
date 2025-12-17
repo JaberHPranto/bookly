@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Body, Depends, status
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio.session import AsyncSession
@@ -21,6 +21,7 @@ from src.auth.services import UserService
 from src.auth.utils import (
     create_access_token,
     create_email_confirmation_token,
+    hash_password,
     verify_email_confirmation_token,
     verify_password,
 )
@@ -196,3 +197,68 @@ async def revoke_token(
         status_code=status.HTTP_200_OK,
         content={"message": "Logout successful"},
     )
+
+
+@auth_router.post("/reset-password-request")
+async def password_reset_request(
+    email: str = Body(..., embed=True), session: AsyncSession = Depends(get_session)
+):
+    user = await user_service.get_user_by_email(session, email)
+    if not user:
+        raise UserNotFoundException()
+
+    verification_token = create_email_confirmation_token(user.email)
+    reset_link = (
+        f"{Config.DOMAIN}/api/v1/auth/reset-password?token={verification_token}"
+    )
+
+    reset_password_template = f"""
+    <html>
+        <body>
+            <h2>Password Reset Request</h2>
+            <p>Hi {user.first_name},</p>
+            <p>We received a request to reset your password. Click the link below to reset your password:</p>
+            <a href="{reset_link}">Reset Password</a>
+            <p>If you did not request a password reset, please ignore this email.</p>
+            <br>
+            <p>Best regards,<br>The Bookly Team</p>
+        </body>
+    </html>
+    """
+
+    message = create_message(
+        subject="Bookly - Password Reset Request",
+        recipients=[user.email],
+        body=reset_password_template,
+    )
+
+    await mail.send_message(message)
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={"message": "Password reset link has been sent to your email."},
+    )
+
+
+@auth_router.post("/reset-password")
+async def reset_password(
+    token: str,
+    password: str = Body(..., embed=True),
+    session: AsyncSession = Depends(get_session),
+):
+    decoded_email = verify_email_confirmation_token(token)
+
+    if not decoded_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired token",
+        )
+    user = await user_service.get_user_by_email(session, decoded_email)
+
+    if not user:
+        raise UserNotFoundException()
+
+    hashed_password = hash_password(password)
+    await user_service.update_users(session, user, {"hashed_password": hashed_password})
+
+    return {"message": "Password has been reset successfully"}
