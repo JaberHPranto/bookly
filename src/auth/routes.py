@@ -108,12 +108,20 @@ async def signup(
         body=email_template,
     )
 
-    await mail.send_message(message)
+    email_sent = True
+    try:
+        await mail.send_message(message)
+    except Exception as e:
+        # Log the error but don't fail the signup
+        print(f"Failed to send verification email: {e}")
+        email_sent = False
 
     return JSONResponse(
         status_code=status.HTTP_201_CREATED,
         content={
-            "message": "User created successfully. Please check your email to verify your account.",
+            "message": "User created successfully. Please check your email to verify your account."
+            if email_sent
+            else "User created successfully. Email verification is temporarily unavailable.",
             "user": new_user.model_dump(mode="json"),
         },
     )
