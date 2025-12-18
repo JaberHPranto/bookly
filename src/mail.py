@@ -25,7 +25,6 @@ mail_conf = ConnectionConfig(
     MAIL_SSL_TLS=False,
     USE_CREDENTIALS=True,
     VALIDATE_CERTS=True,
-    TEMPLATE_FOLDER=(BASE_DIR / "templates"),
 )
 
 mail = FastMail(mail_conf)
